@@ -1,6 +1,7 @@
-import type { AllergenCategoryId } from "@/types/allergens";
+import type { AllergenCategoryId, ContaminationRules } from "@/types/allergens";
 import type { FlatDish, MenuEntry } from "@/types/menu";
-import { categoriesForCodes } from "./allergens";
+import { ALLERGEN_CATEGORIES, categoriesForCodes } from "./allergens";
+import { findCrossContamination } from "./cross-contamination";
 
 export interface DashboardFilters {
   from: string | null;
@@ -21,7 +22,7 @@ export const EMPTY_FILTERS: DashboardFilters = {
   allergens: [],
 };
 
-export function flattenEntries(entries: readonly MenuEntry[]): FlatDish[] {
+export function flattenEntries(entries: readonly MenuEntry[], rules?: ContaminationRules): FlatDish[] {
   return entries.flatMap((entry) =>
     (entry.dishes ?? []).map((dish, i) => {
       const codes = [
@@ -29,6 +30,10 @@ export function flattenEntries(entries: readonly MenuEntry[]): FlatDish[] {
       ];
       const categories = categoriesForCodes(codes);
       const allergensKnown = dish.allergensKnown !== false;
+      const crossContamination = findCrossContamination(dish.name, categories, rules);
+      const effectiveCategories = ALLERGEN_CATEGORIES.map((c) => c.id).filter(
+        (id) => categories.includes(id) || crossContamination.some((h) => h.category === id),
+      );
       return {
         key: `${entry.locationId}|${entry.date}|${entry.mealGroup}|${dish.id}|${i}`,
         dishId: dish.id,
@@ -39,8 +44,10 @@ export function flattenEntries(entries: readonly MenuEntry[]): FlatDish[] {
         mealGroup: entry.mealGroup?.trim() || "Unknown",
         codes,
         categories,
+        effectiveCategories,
+        crossContamination,
         allergensKnown,
-        allergenFree: allergensKnown && categories.length === 0,
+        allergenFree: allergensKnown && effectiveCategories.length === 0,
         image: dish.image,
       };
     }),
@@ -61,13 +68,13 @@ export function applyBaseFilters(
   );
 }
 
-/** Keep dishes containing at least one selected category. Empty = no-op. */
+/** Keep dishes containing (or possibly cross-contaminated with) at least one selected category. Empty = no-op. */
 export function filterByAllergens(
   dishes: readonly FlatDish[],
   allergens: readonly AllergenCategoryId[],
 ): FlatDish[] {
   if (allergens.length === 0) return [...dishes];
-  return dishes.filter((d) => d.categories.some((c) => allergens.includes(c)));
+  return dishes.filter((d) => d.effectiveCategories.some((c) => allergens.includes(c)));
 }
 
 /**
@@ -80,5 +87,5 @@ export function filterWithout(
 ): FlatDish[] {
   if (allergens.length === 0) return dishes.filter((d) => d.allergenFree);
   // Dishes with missing allergen information are never reported as "without" an allergen.
-  return dishes.filter((d) => d.allergensKnown && !d.categories.some((c) => allergens.includes(c)));
+  return dishes.filter((d) => d.allergensKnown && !d.effectiveCategories.some((c) => allergens.includes(c)));
 }

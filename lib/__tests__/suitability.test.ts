@@ -26,7 +26,7 @@ const build = (selected: string[], avoid: Parameters<typeof buildTodayOverview>[
 describe("dish evaluation", () => {
   const by = (id: string) => dishes.find((d) => d.dishId === id)!;
   it("distinguishes match, contains and unknown", () => {
-    expect(evaluateDish(by("a"), ["gluten"])).toEqual({ status: "contains", conflicts: ["gluten"] });
+    expect(evaluateDish(by("a"), ["gluten"])).toMatchObject({ status: "contains", conflicts: ["gluten"] });
     expect(evaluateDish(by("d"), ["gluten"]).status).toBe("match");
     expect(evaluateDish(by("c"), ["gluten"]).status).toBe("unknown");
     expect(evaluateDish(by("c"), []).status).toBe("unknown");

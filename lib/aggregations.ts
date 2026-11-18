@@ -9,13 +9,13 @@ export interface GroupStats {
   /** Unique dishes. */
   total: number;
   allergenFree: number;
-  /** Dishes containing each category (not mutually exclusive). */
+  /** Dishes containing (or possibly cross-contaminated with) each category; not mutually exclusive. */
   counts: CategoryCounts;
 }
 
 export function countByCategory(dishes: readonly FlatDish[]): CategoryCounts {
   const counts = emptyCounts();
-  for (const d of dishes) for (const c of d.categories) counts[c] += 1;
+  for (const d of dishes) for (const c of d.effectiveCategories) counts[c] += 1;
   return counts;
 }
 
@@ -105,4 +105,25 @@ export function aggregateWithoutByDay(
 ): FreeDayStats[] {
   const free = countWithoutBy(dishes, excluded, (d) => d.date);
   return aggregateByDay(dishes).map((d) => ({ key: d.key, total: d.total, free: free.get(d.key) ?? 0 }));
+}
+
+/** part/total as a percentage with one decimal; 0 when total is 0. */
+export function percentOf(part: number, total: number): number {
+  return total > 0 ? Math.round((part / total) * 1000) / 10 : 0;
+}
+
+/** Counts converted to the percentage of `total` dishes, per category. */
+export function sharePercent(counts: CategoryCounts, total: number): CategoryCounts {
+  return Object.fromEntries(
+    Object.entries(counts).map(([k, v]) => [k, percentOf(v, total)]),
+  ) as CategoryCounts;
+}
+
+/** Dishes containing at least one of the given categories (each dish counted once) vs all dishes. */
+export function shareWithAny(
+  dishes: readonly FlatDish[],
+  categories: readonly AllergenCategoryId[],
+): { count: number; total: number; percent: number } {
+  const count = dishes.filter((d) => d.effectiveCategories.some((c) => categories.includes(c))).length;
+  return { count, total: dishes.length, percent: percentOf(count, dishes.length) };
 }

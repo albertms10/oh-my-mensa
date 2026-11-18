@@ -1,9 +1,9 @@
-import type { AllergenCategoryId } from "@/types/allergens";
-import { ALLERGEN_CATEGORIES } from "./allergens";
 import { EMPTY_FILTERS, type DashboardFilters } from "./filters";
 
 export const STORAGE_KEY = "allergen-analytics:filters:v1";
-const KEYS = ["from", "to", "loc", "group", "allergen"] as const;
+// Allergens are shared with the overview via preferences, so they are not part of the URL.
+const KEYS = ["from", "to", "loc", "group"] as const;
+const LEGACY_KEYS = ["allergen"];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function filtersToParams(f: DashboardFilters): URLSearchParams {
@@ -12,21 +12,19 @@ export function filtersToParams(f: DashboardFilters): URLSearchParams {
   if (f.to) p.set("to", f.to);
   f.locationIds.forEach((v) => p.append("loc", v));
   f.mealGroups.forEach((v) => p.append("group", v));
-  f.allergens.forEach((v) => p.append("allergen", v));
   return p;
 }
 
-/** Returns null when the params contain none of the filter keys. Invalid values are dropped. */
+/** Returns null when the params contain none of the filter keys. Invalid values are dropped. Allergens are never read from the URL. */
 export function filtersFromParams(p: URLSearchParams): DashboardFilters | null {
   if (!KEYS.some((k) => p.has(k))) return null;
   const date = (v: string | null) => (v && ISO_DATE.test(v) ? v : null);
-  const known = new Set<string>(ALLERGEN_CATEGORIES.map((c) => c.id));
   return {
     from: date(p.get("from")),
     to: date(p.get("to")),
     locationIds: [...new Set(p.getAll("loc").filter(Boolean))],
     mealGroups: [...new Set(p.getAll("group").filter(Boolean))],
-    allergens: [...new Set(p.getAll("allergen").filter((a) => known.has(a)))] as AllergenCategoryId[],
+    allergens: [],
   };
 }
 
@@ -64,7 +62,7 @@ export function persistFilters(f: DashboardFilters): void {
   const params = filtersToParams(f);
   try {
     const url = new URL(window.location.href);
-    KEYS.forEach((k) => url.searchParams.delete(k));
+    [...KEYS, ...LEGACY_KEYS].forEach((k) => url.searchParams.delete(k));
     params.forEach((v, k) => url.searchParams.append(k, v));
     window.history.replaceState(window.history.state, "", url);
   } catch {

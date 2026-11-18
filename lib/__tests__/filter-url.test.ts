@@ -5,14 +5,17 @@ import { describe, expect, it } from "vitest";
 
 describe("filter URL serialization", () => {
   it("round-trips filters", () => {
-    const f = { from: "2026-11-02", to: "2026-11-06", locationIds: ["1", "4"], mealGroups: ["Menü 1", "A,B"], allergens: ["gluten" as const, "milk" as const] };
+    const f = { from: "2026-11-02", to: "2026-11-06", locationIds: ["1", "4"], mealGroups: ["Menü 1", "A,B"], allergens: [] };
     expect(filtersFromParams(new URLSearchParams(filtersToParams(f).toString()))).toEqual(f);
   });
   it("returns null without filter params and drops invalid values", () => {
     expect(filtersFromParams(new URLSearchParams("foo=1"))).toBeNull();
-    const f = filtersFromParams(new URLSearchParams("from=nope&allergen=gluten&allergen=bogus"))!;
+    const f = filtersFromParams(new URLSearchParams("from=nope&allergen=gluten"))!;
     expect(f.from).toBeNull();
-    expect(f.allergens).toEqual(["gluten"]);
+    expect(f.allergens).toEqual([]); // allergens come from the shared preferences, never the URL
+  });
+  it("does not serialize allergens", () => {
+    expect(filtersToParams({ ...EMPTY_FILTERS, allergens: ["gluten"] }).toString()).toBe("");
   });
   it("serializes empty filters to an empty query", () => {
     expect(filtersToParams(EMPTY_FILTERS).toString()).toBe("");

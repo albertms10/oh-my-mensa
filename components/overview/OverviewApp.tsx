@@ -125,6 +125,9 @@ export function OverviewApp() {
                 {prefs.allergens.length === 0 && counts.total > 0 && (
                   <p className="mt-1 text-sm text-stone-600">You haven&rsquo;t excluded any allergens, so every dish with allergen information is included.</p>
                 )}
+                {counts.warned > 0 && (
+                  <p className="mt-1 text-sm text-amber-950">⚠ {counts.warned} dish{counts.warned > 1 ? "es are" : " is"} not listed here because of possible cross-contamination (e.g. shared fryer oil). {counts.warned > 1 ? "They are" : "It is"} shown in the full menu below.</p>
+                )}
                 {counts.unknown > 0 && (
                   <p className="mt-1 text-sm text-amber-900">{counts.unknown} dish{counts.unknown > 1 ? "es have" : " has"} no allergen information and {counts.unknown > 1 ? "are" : "is"} not listed here.</p>
                 )}
@@ -172,7 +175,7 @@ export function OverviewApp() {
             If you have a serious allergy, please ask the canteen staff.
           </p>
           <p className="flex flex-wrap gap-x-4 gap-y-1">
-            <a className="underline" href="/details">Details (analytics)</a>
+            <a className="underline" href="/details">Details and statistics</a>
             <a className="inline-flex items-center gap-1 underline" href="https://www.studierendenwerk-stuttgart.de/essen/speiseplan" target="_blank" rel="noopener noreferrer">
               Original menu <ExternalLink className="size-3" aria-hidden />
             </a>

@@ -57,7 +57,7 @@ export function readStoredPreferences(): Preferences | null {
   }
 }
 
-/** Seed for the details filters. The details page keeps its own filter state afterwards. */
+/** Seed for the details page filters (allergens are shared live; the rest is seeded once). */
 export function preferencesToFilters(p: Preferences | null): DashboardFilters {
   return p ? { ...EMPTY_FILTERS, allergens: p.allergens, locationIds: p.locationIds } : EMPTY_FILTERS;
 }

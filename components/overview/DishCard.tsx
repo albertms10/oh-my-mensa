@@ -1,3 +1,4 @@
+import { ContaminationBadge } from "@/components/ui/ContaminationBadge";
 import { DishImage } from "@/components/ui/DishImage";
 import { CATEGORY_BY_ID } from "@/lib/allergens";
 import type { EvaluatedDish } from "@/lib/suitability";
@@ -7,10 +8,11 @@ const BADGE = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-
 
 /** Friendly allergen presentation. Original codes are only inside a collapsed "inspect" block. */
 export function DishCard({ dish, avoid, showMensa = false }: { dish: EvaluatedDish; avoid: AllergenCategoryId[]; showMensa?: boolean }) {
-  const { status, conflicts } = dish.evaluation;
-  const border = status === "contains" ? "border-red-200" : status === "unknown" ? "border-amber-300" : "border-emerald-200";
+  const { status, conflicts, warnings } = dish.evaluation;
+  const possibleOnly = status === "contains" && conflicts.length === 0;
+  const border = conflicts.length ? "border-red-200" : possibleOnly || status === "unknown" ? "border-amber-400" : "border-emerald-200";
   return (
-    <article className={`flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm ${border} ${status === "contains" ? "opacity-80" : ""}`}>
+    <article className={`flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm ${border} ${status === "contains" ? "opacity-85" : ""}`}>
       <DishImage image={dish.image} alt={dish.name} className="h-32 w-full" />
       <div className="flex flex-1 flex-col gap-2 p-3">
         <h4 className="text-base font-semibold leading-snug text-stone-900">{dish.name}</h4>
@@ -18,10 +20,18 @@ export function DishCard({ dish, avoid, showMensa = false }: { dish: EvaluatedDi
 
         <div className="flex flex-wrap gap-1.5">
           {status === "match" && avoid.length > 0 && <span className={`${BADGE} bg-emerald-100 text-emerald-900`}>Matches your preferences</span>}
-          {status === "contains" && <span className={`${BADGE} bg-red-100 text-red-900`}>Contains {conflicts.map((c) => CATEGORY_BY_ID[c].label).join(", ")}</span>}
+          {conflicts.length > 0 && <span className={`${BADGE} bg-red-100 text-red-900`}>Contains {conflicts.map((c) => CATEGORY_BY_ID[c].label).join(", ")}</span>}
           {status === "unknown" && <span className={`${BADGE} bg-amber-100 text-amber-900`}>Allergen info missing</span>}
+          {warnings.length > 0 && <ContaminationBadge hints={warnings} />}
           {dish.allergenFree && <span className={`${BADGE} bg-sky-100 text-sky-900`}>Allergen-free</span>}
         </div>
+
+        {warnings.length > 0 && (
+          <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-950">
+            Not listed as an ingredient, but this dish may come into contact with {warnings.map((w) => CATEGORY_BY_ID[w.category].label).join(", ")}.
+            {" "}{[...new Set(warnings.map((w) => w.reason).filter(Boolean))].join(" ")} It is treated like a dish containing {warnings.length > 1 ? "them" : "it"}.
+          </p>
+        )}
 
         {status === "unknown" ? (
           <p className="text-xs text-stone-700">No allergen information is available for this dish. Please ask the canteen.</p>

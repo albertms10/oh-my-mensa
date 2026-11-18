@@ -1,6 +1,7 @@
 "use client";
 
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
+import { ContaminationBadge } from "@/components/ui/ContaminationBadge";
 import { DishImage } from "@/components/ui/DishImage";
 import { formatDateLong } from "@/lib/formatters";
 import type { FlatDish } from "@/types/menu";
@@ -32,6 +33,15 @@ export function DishDetails({ dish, onClose }: { dish: FlatDish; onClose: () => 
           <dd className="flex flex-wrap gap-1">
             {dish.categories.length ? dish.categories.map((c) => <CategoryBadge key={c} id={c} />) : "None of the 8 configured categories"}
           </dd>
+          {dish.crossContamination.length > 0 && (
+            <>
+              <dt className="text-zinc-600">Cross-contamination</dt>
+              <dd className="space-y-1">
+                <ContaminationBadge hints={dish.crossContamination} />
+                <p className="text-xs text-zinc-700">{[...new Set(dish.crossContamination.map((h) => h.reason).filter(Boolean))].join(" ")} Counted like a contained allergen in filters and statistics.</p>
+              </dd>
+            </>
+          )}
           <dt className="text-zinc-600">Source codes</dt>
           <dd className="font-mono">{dish.codes.length ? dish.codes.join(", ") : "–"}</dd>
         </dl>

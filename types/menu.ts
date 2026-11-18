@@ -1,4 +1,4 @@
-import type { AllergenCategoryId } from "./allergens";
+import type { AllergenCategoryId, ContaminationHint } from "./allergens";
 
 export interface Dish {
   id: string;
@@ -46,7 +46,12 @@ export interface FlatDish {
   mealGroup: string;
   /** Deduplicated original codes. */
   codes: string[];
+  /** Declared categories only (from the source codes). */
   categories: AllergenCategoryId[];
+  /** Declared categories plus possible cross-contamination. All filtering, counting and "allergen-free" logic uses this. */
+  effectiveCategories: AllergenCategoryId[];
+  /** Possible cross-contamination from name-based rules; treated like contained allergens in logic, shown separately. */
+  crossContamination: ContaminationHint[];
   /** False when the source has no allergen information for this dish. */
   allergensKnown: boolean;
   /** Known AND none of the 8 configured categories. */

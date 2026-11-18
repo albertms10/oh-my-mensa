@@ -2,6 +2,7 @@
 
 import { Card, EmptyState } from "@/components/ui/Card";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
+import { ContaminationBadge } from "@/components/ui/ContaminationBadge";
 import { DishImage } from "@/components/ui/DishImage";
 import { ALLERGEN_CATEGORIES } from "@/lib/allergens";
 import { formatDate } from "@/lib/formatters";
@@ -29,7 +30,7 @@ export function DishExplorer({ dishes, onSelect }: { dishes: FlatDish[]; onSelec
     const filtered = dishes.filter(
       (d) =>
         (!q || d.name.toLowerCase().includes(q)) &&
-        (!category || (category === "free" ? d.allergenFree : d.categories.includes(category as never))),
+        (!category || (category === "free" ? d.allergenFree : d.effectiveCategories.includes(category as never))),
     );
     return filtered.sort((a, b) => {
       const av = a[sort.key], bv = b[sort.key];
@@ -96,7 +97,7 @@ export function DishExplorer({ dishes, onSelect }: { dishes: FlatDish[]; onSelec
                     <td className="px-3 py-2">{d.locationName}</td>
                     <td className="whitespace-nowrap px-3 py-2">{formatDate(d.date)}</td>
                     <td className="px-3 py-2">{d.mealGroup}</td>
-                    <td className="px-3 py-2"><div className="flex flex-wrap gap-1">{d.categories.map((c) => <CategoryBadge key={c} id={c} />)}</div></td>
+                    <td className="px-3 py-2"><div className="flex flex-wrap gap-1">{d.categories.map((c) => <CategoryBadge key={c} id={c} />)}<ContaminationBadge hints={d.crossContamination} compact /></div></td>
                     <td className="px-3 py-2 font-mono text-xs">{d.codes.join(", ") || "–"}</td>
                     <td className="px-3 py-2">{d.allergenFree ? <span className="inline-flex items-center gap-1 text-green-800"><Check className="size-4" aria-hidden />Yes</span> : "No"}</td>
                   </tr>

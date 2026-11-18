@@ -15,7 +15,9 @@ import { loadMenu } from "@/lib/client/api";
 import { persistFilters, readInitialFilters, sanitizeFilters } from "@/lib/filter-url";
 import { EMPTY_FILTERS, applyBaseFilters, filterByAllergens, flattenEntries, type DashboardFilters } from "@/lib/filters";
 import { formatDateLong, formatDateTime } from "@/lib/formatters";
-import { preferencesToFilters, readStoredPreferences } from "@/lib/preferences";
+import { createPreferences, preferencesToFilters, readStoredPreferences } from "@/lib/preferences";
+import { usePreferences } from "@/lib/use-preferences";
+import type { AllergenCategoryId } from "@/types/allergens";
 import type { FlatDish, MenuResponse } from "@/types/menu";
 import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -24,12 +26,13 @@ import { KpiCards } from "./KpiCards";
 
 interface State { data: MenuResponse | null; error: string | null; loading: boolean }
 
+const NO_ALLERGENS: AllergenCategoryId[] = [];
 const NAV = [["#overview", "Overview"], ["#charts", "Charts"], ["#explorer", "Explorer"], ["#allergen-free", "Allergen-free"]];
 
 export function Dashboard() {
   const [state, setState] = useState<State>({ data: null, error: null, loading: true });
-  // Restored from the URL, else stored filters, else seeded from the overview preferences (read-only: never written back). Safe for SSR/hydration: nothing filter-dependent renders before data loads.
-  const [filters, setFilters] = useState<DashboardFilters>(() =>
+  // Date, location and meal-group filters: URL, else stored, else seeded from the preferences. Safe for SSR/hydration: nothing filter-dependent renders before data loads.
+  const [localFilters, setLocalFilters] = useState<DashboardFilters>(() =>
     typeof window === "undefined" ? EMPTY_FILTERS : readInitialFilters(preferencesToFilters(readStoredPreferences())),
   );
   const [selected, setSelected] = useState<FlatDish | null>(null);
@@ -42,7 +45,7 @@ export function Dashboard() {
       if (r.data) {
         const flat = flattenEntries(r.data.entries);
         const days = flat.map((d) => d.date).sort();
-        setFilters((f) =>
+        setLocalFilters((f) =>
           sanitizeFilters(f, {
             locationIds: flat.map((d) => d.locationId),
             mealGroups: flat.map((d) => d.mealGroup),
@@ -55,7 +58,17 @@ export function Dashboard() {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => { persistFilters(filters); }, [filters]);
+  useEffect(() => { persistFilters(localFilters); }, [localFilters]);
+
+  // The allergen filter IS the overview preference: one shared state, persisted in localStorage.
+  const { state: prefState, save } = usePreferences();
+  const prefs = prefState.status === "ready" ? prefState.preferences : null;
+  const allergens = prefs?.allergens ?? NO_ALLERGENS;
+  const filters = useMemo<DashboardFilters>(() => ({ ...localFilters, allergens }), [localFilters, allergens]);
+  const setFilters = (f: DashboardFilters) => {
+    setLocalFilters({ ...f, allergens: [] });
+    if (f.allergens.join() !== allergens.join()) save(createPreferences(f.allergens, prefs?.locationIds ?? []));
+  };
 
   const reload = () => {
     setState((s) => ({ ...s, loading: true, error: null }));
@@ -146,7 +159,7 @@ export function Dashboard() {
                   minDate={dates.at(0)} maxDate={dates.at(-1)} />
                 {filters.allergens.length > 0 && (
                   <p className="mt-3 text-xs text-zinc-600">
-                    Allergen selection narrows the allergen charts and the dish explorer (dishes containing them), and turn the allergen-free chart and list into dishes without them. KPIs still cover all dishes in the selected period, locations and meal groups.
+                    The allergen selection is shared with the overview. It narrows the allergen charts and the dish explorer (dishes containing them), and turn the allergen-free chart and list into dishes without them. KPIs still cover all dishes in the selected period, locations and meal groups.
                   </p>
                 )}
               </div>

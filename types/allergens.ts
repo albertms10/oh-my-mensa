@@ -18,3 +18,13 @@ export interface AllergenCategory {
 }
 
 export type CategoryCounts = Record<AllergenCategoryId, number>;
+
+/** Possible (not declared) contact with an allergen, e.g. through a shared fryer. */
+export interface ContaminationHint {
+  category: AllergenCategoryId;
+  reason?: string;
+}
+
+/** A rule is a pattern string or `{ pattern, reason }`. See data/cross-contamination.ts. */
+export type ContaminationRule = string | { pattern: string; reason?: string };
+export type ContaminationRules = Partial<Record<AllergenCategoryId, readonly ContaminationRule[]>>;

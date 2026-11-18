@@ -1,21 +1,27 @@
-import type { AllergenCategoryId } from "@/types/allergens";
+import type { AllergenCategoryId, ContaminationHint } from "@/types/allergens";
 import type { FlatDish, Location } from "@/types/menu";
 
 /**
- * match    – allergen info available and none of the avoided categories present
- * contains – at least one avoided category present
+ * match    – allergen info available, no avoided category declared and no possible cross-contamination with one
+ * contains – at least one avoided category declared OR possibly cross-contaminated (treated like contained)
  * unknown  – allergen info missing; never treated as safe
  * Note: "match" is NOT "allergen-free"; that is `dish.allergenFree` (none of all 8 categories).
  */
 export type MatchStatus = "match" | "contains" | "unknown";
 
-export interface Evaluation { status: MatchStatus; conflicts: AllergenCategoryId[] }
+export interface Evaluation {
+  status: MatchStatus;
+  conflicts: AllergenCategoryId[];
+  /** Possible cross-contamination with avoided categories. Counts as "contains" (unless info is missing). */
+  warnings: ContaminationHint[];
+}
 export type EvaluatedDish = FlatDish & { evaluation: Evaluation };
 
 export function evaluateDish(dish: FlatDish, avoid: readonly AllergenCategoryId[]): Evaluation {
-  if (!dish.allergensKnown) return { status: "unknown", conflicts: [] };
+  const warnings = dish.crossContamination.filter((h) => avoid.includes(h.category));
+  if (!dish.allergensKnown) return { status: "unknown", conflicts: [], warnings };
   const conflicts = dish.categories.filter((c) => avoid.includes(c));
-  return { status: conflicts.length ? "contains" : "match", conflicts };
+  return { status: conflicts.length || warnings.length ? "contains" : "match", conflicts, warnings };
 }
 
 export interface MealGroupSection { mealGroup: string; dishes: EvaluatedDish[] }
@@ -46,7 +52,11 @@ export interface TodayOverview {
   menus: MensaSection[];
   /** Only dishes with status "match", per mensa that has any. */
   suitable: MensaSection[];
-  counts: { total: number; suitable: number; containing: number; unknown: number; allergenFree: number };
+  counts: {
+    total: number; suitable: number; containing: number; unknown: number; allergenFree: number;
+    /** Dishes excluded only because of possible cross-contamination (no declared conflict). */
+    warned: number;
+  };
 }
 
 export function buildTodayOverview(input: {
@@ -81,6 +91,7 @@ export function buildTodayOverview(input: {
     counts: {
       total: today.length, suitable: count("match"), containing: count("contains"),
       unknown: count("unknown"), allergenFree: today.filter((d) => d.allergenFree).length,
+      warned: today.filter((d) => d.evaluation.status === "contains" && d.evaluation.conflicts.length === 0).length,
     },
   };
 }
