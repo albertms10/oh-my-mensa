@@ -7,6 +7,8 @@ export interface Dish {
   allergens: string[];
   /** Relative MaxManager photo path (e.g. assets/fotos/…/x.jpg), served via /api/dish-image. */
   image?: string;
+  /** false = allergen information is missing in the source (distinct from "no allergens listed"). Default: true. */
+  allergensKnown?: boolean;
 }
 
 export interface MenuEntry {
@@ -20,8 +22,15 @@ export interface MenuEntry {
 
 export type DataSource = "mock" | "maxmanager";
 
+export interface Location {
+  id: string;
+  name: string;
+}
+
 export interface MenuResponse {
   source: DataSource;
+  /** All known locations, including those without a menu in the returned range. */
+  locations: Location[];
   fetchedAt: string;
   entries: MenuEntry[];
 }
@@ -38,6 +47,9 @@ export interface FlatDish {
   /** Deduplicated original codes. */
   codes: string[];
   categories: AllergenCategoryId[];
+  /** False when the source has no allergen information for this dish. */
+  allergensKnown: boolean;
+  /** Known AND none of the 8 configured categories. */
   allergenFree: boolean;
   image?: string;
 }

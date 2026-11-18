@@ -46,8 +46,8 @@ export function sanitizeFilters(
   };
 }
 
-/** Browser only. Priority: URL query params, then localStorage, then no filters. */
-export function readInitialFilters(): DashboardFilters {
+/** Browser only. Priority: URL query params, then stored filters, then `fallback` (e.g. overview preferences). */
+export function readInitialFilters(fallback: DashboardFilters = EMPTY_FILTERS): DashboardFilters {
   try {
     const fromUrl = filtersFromParams(new URLSearchParams(window.location.search));
     if (fromUrl) return fromUrl;
@@ -56,7 +56,7 @@ export function readInitialFilters(): DashboardFilters {
   } catch {
     /* storage unavailable (private mode etc.) */
   }
-  return EMPTY_FILTERS;
+  return fallback;
 }
 
 /** Browser only. Mirrors filters into the address bar (no history entry) and localStorage. */

@@ -7,45 +7,36 @@ import { FilterBar } from "@/components/filters/FilterBar";
 import { AllergenFreeList } from "@/components/tables/AllergenFreeList";
 import { DishExplorer } from "@/components/tables/DishExplorer";
 import { Card, EmptyState } from "@/components/ui/Card";
+import { SiteNav } from "@/components/ui/SiteNav";
 import { computeKpis } from "@/lib/aggregations";
 import { ALLERGEN_CATEGORIES } from "@/lib/allergens";
 import { chartVisibility } from "@/lib/chart-visibility";
+import { loadMenu } from "@/lib/client/api";
 import { persistFilters, readInitialFilters, sanitizeFilters } from "@/lib/filter-url";
 import { EMPTY_FILTERS, applyBaseFilters, filterByAllergens, flattenEntries, type DashboardFilters } from "@/lib/filters";
 import { formatDateLong, formatDateTime } from "@/lib/formatters";
+import { preferencesToFilters, readStoredPreferences } from "@/lib/preferences";
 import type { FlatDish, MenuResponse } from "@/types/menu";
 import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DishDetails } from "./DishDetails";
 import { KpiCards } from "./KpiCards";
 
-type Result = { data?: MenuResponse; error?: string };
 interface State { data: MenuResponse | null; error: string | null; loading: boolean }
-
-async function loadMenu(refresh: boolean): Promise<Result> {
-  try {
-    const res = await fetch(`/api/allergenen${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
-    const body = await res.json().catch(() => null);
-    if (!res.ok) return { error: body?.error ?? `Request failed (${res.status}).` };
-    return { data: body as MenuResponse };
-  } catch {
-    return { error: "The server could not be reached." };
-  }
-}
 
 const NAV = [["#overview", "Overview"], ["#charts", "Charts"], ["#explorer", "Explorer"], ["#allergen-free", "Allergen-free"]];
 
 export function Dashboard() {
   const [state, setState] = useState<State>({ data: null, error: null, loading: true });
-  // Restored from the URL, else localStorage. Safe for SSR/hydration: nothing filter-dependent renders before data loads.
+  // Restored from the URL, else stored filters, else seeded from the overview preferences (read-only: never written back). Safe for SSR/hydration: nothing filter-dependent renders before data loads.
   const [filters, setFilters] = useState<DashboardFilters>(() =>
-    typeof window === "undefined" ? EMPTY_FILTERS : readInitialFilters(),
+    typeof window === "undefined" ? EMPTY_FILTERS : readInitialFilters(preferencesToFilters(readStoredPreferences())),
   );
   const [selected, setSelected] = useState<FlatDish | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void loadMenu(false).then((r) => {
+    void loadMenu().then((r) => {
       if (cancelled) return;
       setState({ data: r.data ?? null, error: r.error ?? null, loading: false });
       if (r.data) {
@@ -68,7 +59,7 @@ export function Dashboard() {
 
   const reload = () => {
     setState((s) => ({ ...s, loading: true, error: null }));
-    void loadMenu(true).then((r) =>
+    void loadMenu({ refresh: true }).then((r) =>
       setState((s) => ({ data: r.data ?? s.data, error: r.error ?? null, loading: false })),
     );
   };
@@ -108,6 +99,7 @@ export function Dashboard() {
               </a>
             </p>
           </div>
+          <SiteNav />
           <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-700">
             {source && (
               <span className={`rounded-full px-2 py-0.5 font-medium ${source === "mock" ? "bg-amber-100 text-amber-900" : "bg-green-100 text-green-900"}`}>

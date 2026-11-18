@@ -1,4 +1,5 @@
-import type { MenuEntry } from "@/types/menu";
+import { addDays, mondayOf, todayISO } from "@/lib/dates";
+import type { Location, MenuEntry } from "@/types/menu";
 import * as cheerio from "cheerio";
 import { getConfig } from "./config";
 import { ProviderError } from "./errors";
@@ -10,22 +11,9 @@ import { normalizeImagePath } from "./images";
  * HTML fragment. Everything runs server-side, so browser CORS never applies.
  */
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-
-function weekdays(weeks: number): { dates: string[]; thisWeek: string; nextWeek: string } {
-  const now = new Date();
-  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
-  const dates: string[] = [];
-  for (let w = 0; w < weeks; w++)
-    for (let d = 0; d < 5; d++) {
-      const day = new Date(monday);
-      day.setUTCDate(day.getUTCDate() + w * 7 + d);
-      dates.push(iso(day));
-    }
-  const next = new Date(monday);
-  next.setUTCDate(next.getUTCDate() + 7);
-  return { dates, thisWeek: iso(monday), nextWeek: iso(next) };
+function weekdays(weeks: number): string[] {
+  const monday = mondayOf(todayISO());
+  return Array.from({ length: weeks * 5 }, (_, i) => addDays(monday, Math.floor(i / 5) * 7 + (i % 5)));
 }
 
 async function pooled<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -42,7 +30,10 @@ async function pooled<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>)
   return out;
 }
 
-export async function loadMaxManagerEntries(): Promise<MenuEntry[]> {
+/** `date` set = only that day (used by the overview); otherwise the configured weeks. */
+export async function loadMaxManagerData(
+  opts: { date?: string } = {},
+): Promise<{ locations: Location[]; entries: MenuEntry[] }> {
   const cfg = getConfig();
   const { baseUrl, weeks, locationOverride } = cfg.maxmanager;
 
@@ -67,7 +58,7 @@ export async function loadMaxManagerEntries(): Promise<MenuEntry[]> {
   const cookie = pageRes.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
   const $page = cheerio.load(await pageRes.text());
 
-  let locations: { id: string; name: string }[];
+  let locations: Location[];
   if (locationOverride) {
     locations = locationOverride.split(",").map((p) => {
       const [id, ...rest] = p.split(":");
@@ -83,7 +74,9 @@ export async function loadMaxManagerEntries(): Promise<MenuEntry[]> {
     throw new ProviderError("No MaxManager locations found. Set MAXMANAGER_LOCATION_IDS.");
 
   // 2. One request per location and day.
-  const { dates, thisWeek, nextWeek } = weekdays(weeks);
+  const dates = opts.date ? [opts.date] : weekdays(weeks);
+  const thisWeek = mondayOf(dates[0]);
+  const nextWeek = addDays(thisWeek, 7);
   const jobs = locations.flatMap((loc) => dates.map((date) => ({ loc, date })));
 
   const results = await pooled(jobs, 6, async ({ loc, date }) => {
@@ -114,10 +107,16 @@ export async function loadMaxManagerEntries(): Promise<MenuEntry[]> {
       }
       const name = $(el).find(".col-xs-12.visible-xs-block span").first().text().trim();
       if (!name) return;
-      const allergens = ($(el).attr("lang") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-      const list = groups.get(group) ?? [];
+      // Absent `lang` attribute = allergen info missing (unknown). Empty attribute = none listed.
+      const lang = $(el).attr("lang");
+      const allergens = (lang ?? "").split(",").map((s) => s.trim()).filter(Boolean);
       const image = normalizeImagePath($(el).find(".contains-foto img.smallFoto").first().attr("src"), baseUrl);
-      list.push({ id: `${loc.id}-${date}-${i}`, name, allergens, ...(image ? { image } : {}) });
+      const list = groups.get(group) ?? [];
+      list.push({
+        id: `${loc.id}-${date}-${i}`, name, allergens,
+        ...(lang === undefined ? { allergensKnown: false } : {}),
+        ...(image ? { image } : {}),
+      });
       groups.set(group, list);
     });
     return [...groups].map(
@@ -127,5 +126,5 @@ export async function loadMaxManagerEntries(): Promise<MenuEntry[]> {
     );
   });
 
-  return results.flat();
+  return { locations, entries: results.flat() };
 }

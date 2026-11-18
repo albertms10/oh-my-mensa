@@ -11,13 +11,14 @@ function mulberry32(seed: number) {
   };
 }
 
-const LOCATIONS = [
+export const MOCK_LOCATIONS = [
   { id: "1", name: "Mensa Central" },
   { id: "2", name: "Mensa Vaihingen" },
   { id: "3", name: "Mensa Hohenheim" },
 ];
 
-const POOLS: Record<string, [string, string[]][]> = {
+/** [name, codes, allergen info known (default true)] */
+const POOLS: Record<string, [string, string[], boolean?][]> = {
   "Menü 1": [
     ["Käsespätzle mit Röstzwiebeln", ["GlW", "Ei", "La"]],
     ["Schnitzel mit Pommes", ["GlW", "Ei"]],
@@ -27,6 +28,7 @@ const POOLS: Record<string, [string, string[]][]> = {
     ["Linseneintopf mit Würstchen", ["Sl", "Sf"]],
     ["Hackbällchen in Tomatensauce", ["GlW", "Ei", "Sl"]],
     ["Gemüsepfanne mit Reis", []],
+    ["Tagessuppe (Angaben folgen)", [], false],
   ],
   "Menü 2": [
     ["Pasta Bolognese", ["GlW", "Sl"]],
@@ -50,29 +52,32 @@ const POOLS: Record<string, [string, string[]][]> = {
   ],
 };
 
-const START = Date.UTC(2026, 10, 2); // Mon 2026-11-02
 const WEEKDAYS = 15;
-/** Whole days without menu data. */
-const NO_MENU_DAYS = new Set(["2026-11-11", "2026-11-18"]);
+/** Indices (into the 15 weekdays) without any menu. */
+const NO_MENU_DAYS = new Set([3, 13]);
 
-export function generateMockEntries(): MenuEntry[] {
+/** `startMonday`: Monday (YYYY-MM-DD) of the first of three weeks. */
+export function generateMockEntries(startMonday = "2026-11-02"): MenuEntry[] {
+  const [y, m, day] = startMonday.split("-").map(Number);
+  const start = Date.UTC(y, m - 1, day);
   const rand = mulberry32(20261102);
   const entries: MenuEntry[] = [];
   for (let n = 0; n < WEEKDAYS; n++) {
-    const d = new Date(START);
+    const d = new Date(start);
     d.setUTCDate(d.getUTCDate() + Math.floor(n / 5) * 7 + (n % 5));
     const date = d.toISOString().slice(0, 10);
-    if (NO_MENU_DAYS.has(date)) continue;
-    for (const loc of LOCATIONS) {
+    if (NO_MENU_DAYS.has(n)) continue;
+    for (const loc of MOCK_LOCATIONS) {
       // Hohenheim is closed on Fridays.
       if (loc.id === "3" && d.getUTCDay() === 5) continue;
       for (const [group, pool] of Object.entries(POOLS)) {
         const count = 2 + Math.floor(rand() * 3);
         const picked = [...pool].sort(() => rand() - 0.5).slice(0, count);
-        const dishes: Dish[] = picked.map(([name, allergens], i) => ({
+        const dishes: Dish[] = picked.map(([name, allergens, known], i) => ({
           id: `${loc.id}-${date}-${group}-${i}`.replace(/\s/g, ""),
           name,
           allergens,
+          ...(known === false ? { allergensKnown: false } : {}),
         }));
         entries.push({ locationId: loc.id, locationName: loc.name, date, mealGroup: group, dishes });
       }

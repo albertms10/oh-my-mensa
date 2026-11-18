@@ -28,6 +28,7 @@ export function flattenEntries(entries: readonly MenuEntry[]): FlatDish[] {
         ...new Set((dish.allergens ?? []).map((c) => c.trim()).filter(Boolean)),
       ];
       const categories = categoriesForCodes(codes);
+      const allergensKnown = dish.allergensKnown !== false;
       return {
         key: `${entry.locationId}|${entry.date}|${entry.mealGroup}|${dish.id}|${i}`,
         dishId: dish.id,
@@ -38,7 +39,8 @@ export function flattenEntries(entries: readonly MenuEntry[]): FlatDish[] {
         mealGroup: entry.mealGroup?.trim() || "Unknown",
         codes,
         categories,
-        allergenFree: categories.length === 0,
+        allergensKnown,
+        allergenFree: allergensKnown && categories.length === 0,
         image: dish.image,
       };
     }),
@@ -77,5 +79,6 @@ export function filterWithout(
   allergens: readonly AllergenCategoryId[],
 ): FlatDish[] {
   if (allergens.length === 0) return dishes.filter((d) => d.allergenFree);
-  return dishes.filter((d) => !d.categories.some((c) => allergens.includes(c)));
+  // Dishes with missing allergen information are never reported as "without" an allergen.
+  return dishes.filter((d) => d.allergensKnown && !d.categories.some((c) => allergens.includes(c)));
 }
